@@ -1,6 +1,8 @@
 Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
 
+  root to: proc { [200, { "Content-Type" => "application/json" }, [{ name: "Villages Nourriciers API", version: "1.0.0", status: "ok" }.to_json]] }
+
   namespace :api do
     namespace :v1 do
       # Authentication
