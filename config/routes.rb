@@ -23,6 +23,7 @@ Rails.application.routes.draw do
         member do
           post :submit
           post :validate
+          post :plant
           post :report
         end
       end

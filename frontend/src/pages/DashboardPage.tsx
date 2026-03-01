@@ -220,7 +220,7 @@ export default function DashboardPage() {
           <StatCard
             icon={<TreePine size={24} />}
             label="Hectares plantes"
-            value={`${globalData.total_hectares_planted.toFixed(1)} ha`}
+            value={`${(globalData.total_hectares_planted ?? 0).toFixed(1)} ha`}
             color={COLORS.secondary}
           />
         </div>

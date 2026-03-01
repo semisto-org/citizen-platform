@@ -53,7 +53,7 @@ export default function RegisterPage() {
   // Load villages
   useEffect(() => {
     getVillages({ per_page: 500 })
-      .then((res) => setVillages(res.data))
+      .then((res) => setVillages(res.data ?? []))
       .catch(() => {});
   }, []);
 

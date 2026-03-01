@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_28_000008) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_01_181842) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -76,6 +76,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_000008) do
     t.float "longitude", null: false
     t.integer "negative_validations", default: 0, null: false
     t.float "opportunity_score"
+    t.datetime "planted_at"
+    t.bigint "planted_by_id"
     t.integer "positive_validations", default: 0, null: false
     t.string "source", default: "citizen"
     t.string "species"
@@ -85,6 +87,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_000008) do
     t.bigint "village_id", null: false
     t.index ["creator_id"], name: "index_spots_on_creator_id"
     t.index ["latitude", "longitude"], name: "index_spots_on_latitude_and_longitude"
+    t.index ["planted_by_id"], name: "index_spots_on_planted_by_id"
     t.index ["source"], name: "index_spots_on_source"
     t.index ["spot_type"], name: "index_spots_on_spot_type"
     t.index ["status"], name: "index_spots_on_status"
@@ -141,6 +144,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_000008) do
   add_foreign_key "photos", "spots"
   add_foreign_key "photos", "users"
   add_foreign_key "spots", "users", column: "creator_id"
+  add_foreign_key "spots", "users", column: "planted_by_id"
   add_foreign_key "spots", "villages"
   add_foreign_key "user_badges", "badges"
   add_foreign_key "user_badges", "users"

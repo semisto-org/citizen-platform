@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useAuth } from '../hooks/useAuth';
-import { getSpotsGeoJSON, createSpot, getVillages } from '../lib/api';
+import { getSpotsGeoJSON, createSpot, submitSpot, getVillages } from '../lib/api';
 import {
   SpotType,
   SpotStatus,
@@ -109,6 +109,9 @@ export default function MapPage() {
     }
   }, [loadSpots]);
 
+  const refreshMapDataRef = useRef(refreshMapData);
+  refreshMapDataRef.current = refreshMapData;
+
   // ── Init Mapbox ──
 
   useEffect(() => {
@@ -146,6 +149,9 @@ export default function MapPage() {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
       });
+
+      // Load spots once the source exists (avoids race where fetch completes before map is ready)
+      refreshMapDataRef.current();
 
       m.addLayer({
         id: 'spots-circles',
@@ -291,14 +297,15 @@ export default function MapPage() {
     try {
       const req: CreateSpotRequest = {
         spot_type: formData.spot_type,
-        geometry_type: 'Point',
+        geometry_type: 'point',
         latitude: newSpotCoords.lat,
         longitude: newSpotCoords.lng,
         geometry_coords: [newSpotCoords.lng, newSpotCoords.lat],
         description: formData.description || undefined,
-        village_id: formData.village_id as number,
+        village_id: Number(formData.village_id),
       };
-      await createSpot(req);
+      const spot = await createSpot(req);
+      await submitSpot(spot.id);
       cancelAdd();
       refreshMapData();
     } catch (err: unknown) {

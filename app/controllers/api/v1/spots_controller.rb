@@ -95,6 +95,17 @@ module Api
         end
       end
 
+      def plant
+        spot = Spot.find(params[:id])
+
+        unless spot.status == "validé"
+          return render json: { error: "Seul un spot validé peut être marqué comme planté" }, status: :unprocessable_entity
+        end
+
+        spot.plant!(current_user)
+        render json: { spot: spot_json(spot) }
+      end
+
       def report
         spot = Spot.find(params[:id])
 

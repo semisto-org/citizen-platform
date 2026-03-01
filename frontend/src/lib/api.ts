@@ -164,7 +164,19 @@ export async function getVillages(params?: {
   search?: string;
 }): Promise<PaginatedResponse<Village>> {
   const qs = params ? buildQueryString(params) : "";
-  return apiFetch<PaginatedResponse<Village>>(`/villages${qs}`);
+  const raw = await apiFetch<{ villages?: Village[]; data?: Village[] }>(`/villages${qs}`);
+  // Backend returns { villages: [...] }, normalize to PaginatedResponse
+  const items = raw.data ?? raw.villages ?? [];
+  const perPage = params?.per_page ?? items.length;
+  return {
+    data: items,
+    meta: {
+      current_page: 1,
+      total_pages: Math.max(1, Math.ceil(items.length / perPage)),
+      total_count: items.length,
+      per_page: perPage,
+    },
+  };
 }
 
 export async function getVillage(id: number): Promise<Village> {
@@ -177,7 +189,27 @@ export async function getVillageRanking(params?: {
   per_page?: number;
 }): Promise<PaginatedResponse<VillageRanking>> {
   const qs = params ? buildQueryString(params) : "";
-  return apiFetch<PaginatedResponse<VillageRanking>>(`/villages-ranking${qs}`);
+  const raw = await apiFetch<{
+    ranking?: VillageRanking[];
+    data?: VillageRanking[];
+    meta?: { total_pages: number };
+  }>(`/villages-ranking${qs}`);
+  // Backend returns { ranking: [...] } without pagination, normalize to PaginatedResponse
+  const all = raw.data ?? raw.ranking ?? [];
+  const perPage = params?.per_page ?? 25;
+  const page = params?.page ?? 1;
+  const totalPages = Math.max(1, Math.ceil(all.length / perPage));
+  const start = (page - 1) * perPage;
+  const data = all.slice(start, start + perPage);
+  return {
+    data,
+    meta: raw.meta ?? {
+      current_page: page,
+      total_pages: totalPages,
+      total_count: all.length,
+      per_page: perPage,
+    },
+  };
 }
 
 // ──────────────────────────────────────────────
@@ -206,10 +238,11 @@ export async function getSpotsGeoJSON(params?: {
 }
 
 export async function createSpot(data: CreateSpotRequest): Promise<Spot> {
-  return apiFetch<Spot>("/spots", {
+  const res = await apiFetch<{ spot: Spot }>("/spots", {
     method: "POST",
     body: JSON.stringify(data),
   });
+  return res.spot;
 }
 
 export async function updateSpot(
@@ -253,7 +286,66 @@ export async function reportSpot(
 // ──────────────────────────────────────────────
 
 export async function getGlobalDashboard(): Promise<DashboardGlobal> {
-  return apiFetch<DashboardGlobal>("/dashboard/global");
+  const raw = await apiFetch<{
+    stats?: {
+      villages_active?: number;
+      total_users?: number;
+      total_spots?: number;
+      spots_validated?: number;
+      spots_planted?: number;
+      hectares_planted?: number;
+    };
+    top_villages?: Array<{ id: number; name: string; score: number; level: number; level_name: string }>;
+    recent_spots?: Array<{
+      id: number;
+      type: string;
+      status: string;
+      village: string;
+      creator: string;
+      created_at: string;
+    }>;
+  }>("/dashboard/global");
+
+  const stats = raw.stats ?? {};
+  return {
+    total_villages: stats.villages_active ?? 0,
+    total_users: stats.total_users ?? 0,
+    total_spots: stats.total_spots ?? 0,
+    total_hectares_planted: stats.hectares_planted ?? 0,
+    total_hectares_potential: 0,
+    spots_by_status: {
+      brouillon: 0,
+      soumis: Math.max(
+        0,
+        (stats.total_spots ?? 0) - (stats.spots_validated ?? 0) - (stats.spots_planted ?? 0),
+      ),
+      validé: stats.spots_validated ?? 0,
+      planté: stats.spots_planted ?? 0,
+    },
+    spots_by_type: {
+      haie_existante: 0,
+      haie_potentielle: 0,
+      arbre_isole: 0,
+      bosquet: 0,
+      zone_potentielle: 0,
+    },
+    top_villages: (raw.top_villages ?? []).map((v) => ({
+      id: v.id,
+      name: v.name,
+      score: v.score,
+      level_name: v.level_name,
+    })),
+    recent_contributions: (raw.recent_spots ?? []).map((s) => ({
+      id: s.id,
+      type: s.type,
+      spot_type: s.type,
+      is_positive: true,
+      comment: null,
+      user_name: s.creator,
+      village: s.village,
+      created_at: s.created_at,
+    })),
+  };
 }
 
 export async function getVillageDashboard(
@@ -263,7 +355,60 @@ export async function getVillageDashboard(
 }
 
 export async function getPersonalDashboard(): Promise<PersonalDashboard> {
-  return apiFetch<PersonalDashboard>("/dashboard/personal");
+  const raw = await apiFetch<{
+    user?: {
+      id: number;
+      display_name: string;
+      points: number;
+      role: string;
+      village_name?: string | null;
+    };
+    stats?: {
+      points?: number;
+      spots_created?: number;
+      validations?: number;
+      photos?: number;
+      badges?: string[];
+    };
+    badges?: Array<{ name: string; slug: string; icon: string; description: string }>;
+    recent_contributions?: Array<{
+      id: number;
+      type: string;
+      spot_type: string;
+      village: string;
+      created_at: string;
+    }>;
+  }>("/dashboard/personal");
+
+  const userData = raw.user ?? { id: 0, display_name: "", points: 0, role: "membre", village_name: null };
+  const statsData = raw.stats ?? {};
+
+  return {
+    user: {
+      ...userData,
+      email: "",
+      village_id: null,
+      village_name: userData.village_name ?? null,
+      badges: raw.badges ?? [],
+      stats: {
+        points: statsData.points ?? userData.points ?? 0,
+        spots_created: statsData.spots_created ?? 0,
+        validations: statsData.validations ?? 0,
+        validations_given: statsData.validations ?? 0,
+        photos: statsData.photos ?? 0,
+        photos_uploaded: statsData.photos ?? 0,
+        badges: statsData.badges ?? [],
+        villages_contributed: 0,
+      },
+      bio: null,
+      created_at: "",
+    },
+    recent_contributions: raw.recent_contributions ?? [],
+    recent_spots: [],
+    points_history: [],
+    next_badge: null,
+    next_badge_progress: 0,
+  };
 }
 
 // ──────────────────────────────────────────────

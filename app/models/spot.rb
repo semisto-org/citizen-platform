@@ -1,6 +1,7 @@
 class Spot < ApplicationRecord
   belongs_to :village
   belongs_to :creator, class_name: "User"
+  belongs_to :planted_by, class_name: "User", optional: true
   has_many :contributions, dependent: :destroy
   has_many :photos, dependent: :destroy
 
@@ -38,6 +39,14 @@ class Spot < ApplicationRecord
 
     update!(status: "soumis")
     creator.add_points!(15)
+  end
+
+  def plant!(user)
+    return unless status == "validé"
+
+    update!(status: "planté", planted_at: Time.current, planted_by: user)
+    user.add_points!(20)
+    village.recalculate_score!
   end
 
   def check_validation!
